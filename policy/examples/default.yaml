@@ -1,0 +1,11 @@
+# Example VEIL policy (one file per agent/service pair)
+agent: assistant-1
+service: gmail
+rules:
+  - tool: read_message
+    action: mask
+    mask: [email, phone, otp, card_number, government_id]
+  - tool: send_message
+    action: ask  # requires explicit user approval
+  - tool: delete_message
+    action: deny

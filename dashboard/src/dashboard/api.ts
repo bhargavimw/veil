@@ -1,9 +1,22 @@
 /**
- * Data adapter. Works against mock data by default; if VITE_VEIL_API_URL is
- * set, uses fetch against that base URL (WebSocket at /ws/events for
- * subscribeToEvents) and falls back to mock mode if unreachable.
+ * Data adapter. Mock/demo mode by default (uses mockData.ts). When
+ * ``VITE_VEIL_API_URL`` is set, talks to the VEIL gateway REST API and
+ * the ``/ws/events`` WebSocket, falling back to mock mode if the backend
+ * is unreachable. Field names, verbs and paths match the AGENTS.md
+ * section 4 contract exactly.
+ *
+ * Connection state is exposed through ``getMode`` / ``onModeChange``:
+ * "Live" only while the backend is reachable (and the WS is open),
+ * otherwise "Demo mode".
  */
-import type { Agent, Approval, Identity, IdentityKind, Status, VeilEvent } from './types';
+import type {
+  Agent,
+  Approval,
+  Identity,
+  IdentityKind,
+  Status,
+  VeilEvent,
+} from './types';
 import { AGENTS, APPROVALS, IDENTITIES, seedEvents } from './mockData';
 
 const BASE = import.meta.env.VITE_VEIL_API_URL as string | undefined;
@@ -13,20 +26,46 @@ export type Unsubscribe = () => void;
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-async function probeLive(): Promise<Mode> {
-  if (!BASE) return 'demo';
-  try {
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 2500);
-    await fetch(`${BASE}/health`, { signal: ctrl.signal });
-    clearTimeout(t);
-    return 'live';
-  } catch {
-    return 'demo';
+// ---------------------------------------------------------------------------
+// Connection / mode
+// ---------------------------------------------------------------------------
+
+let currentMode: Mode = 'demo';
+const modeSubs = new Set<(m: Mode) => void>();
+
+function setMode(m: Mode) {
+  if (currentMode !== m) {
+    currentMode = m;
+    modeSubs.forEach((fn) => fn(m));
   }
 }
 
-/* ---------- in-memory mock backend ---------- */
+export function onModeChange(fn: (m: Mode) => void): Unsubscribe {
+  modeSubs.add(fn);
+  return () => modeSubs.delete(fn);
+}
+
+export function getMode(): Promise<Mode> {
+  if (!BASE) {
+    setMode('demo');
+    return Promise.resolve('demo');
+  }
+  return fetch(`${BASE}/api/health`, { signal: AbortSignal.timeout(2500) })
+    .then((r) => {
+      if (!r.ok) throw new Error(`health ${r.status}`);
+      setMode('live');
+      return 'live' as Mode;
+    })
+    .catch((err) => {
+      console.warn('[veil] backend unreachable, demo mode:', (err as Error).message);
+      setMode('demo');
+      return 'demo' as Mode;
+    });
+}
+
+// ---------------------------------------------------------------------------
+// In-memory mock backend (used in demo mode, and as fallback)
+// ---------------------------------------------------------------------------
 
 let events: VeilEvent[] = seedEvents();
 const listeners = new Set<(e: VeilEvent) => void>();
@@ -42,88 +81,91 @@ export function pushMockEvent(partial: Omit<VeilEvent, 'id' | 'timestamp'> & { i
   return ev;
 }
 
-/* ---------- public API ---------- */
+function demoFallback<T>(fn: () => Promise<T>): () => Promise<T> {
+  return async () => {
+    if (!BASE) return fn();
+    try {
+      return await fn();
+    } catch (err) {
+      console.warn('[veil] request failed, demo mode:', (err as Error).message);
+      setMode('demo');
+      return fn();
+    }
+  };
+}
 
-export async function getMode(): Promise<Mode> {
-  return probeLive();
+// ---------------------------------------------------------------------------
+// REST
+// ---------------------------------------------------------------------------
+
+async function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  if (!BASE) throw new Error('no API URL');
+  const r = await fetch(`${BASE}${path}`, {
+    ...init,
+    headers: { 'Content-Type': 'application/json', ...init.headers },
+  });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r;
+}
+
+async function apiJson<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const r = await apiFetch(path, init);
+  return (await r.json()) as T;
 }
 
 export async function getEvents(): Promise<VeilEvent[]> {
   if (BASE) {
     try {
-      const r = await fetch(`${BASE}/events`);
-      if (r.ok) return (await r.json()) as VeilEvent[];
+      return await apiJson<VeilEvent[]>(`/events?limit=300`);
     } catch { /* fall through to mock */ }
   }
   await wait(120);
   return events;
 }
 
-export function subscribeToEvents(cb: (e: VeilEvent) => void): Unsubscribe {
-  listeners.add(cb);
-  let ws: WebSocket | undefined;
-  if (BASE) {
-    try {
-      const url = `${BASE.replace(/^http/, 'ws')}/ws/events`;
-      ws = new WebSocket(url);
-      ws.onmessage = (m) => {
-        try { cb(JSON.parse(m.data as string) as VeilEvent); } catch { /* ignore bad frames */ }
-      };
-      ws.onerror = () => { /* stay in mock broadcast */ };
-    } catch { /* mock only */ }
-  }
-  return () => {
-    listeners.delete(cb);
-    ws?.close();
-  };
-}
-
 export async function getAgents(): Promise<Agent[]> {
   if (BASE) {
     try {
-      const r = await fetch(`${BASE}/agents`);
-      if (r.ok) return (await r.json()) as Agent[];
+      return await apiJson<Agent[]>(`/agents`);
     } catch { /* mock */ }
   }
   await wait(100);
   return AGENTS.map((a) => ({ ...a, permissions: { ...a.permissions } }));
 }
 
-export async function updatePermission(agentId: string, key: string, value: Agent['permissions'][string]): Promise<void> {
+export async function updatePermission(
+  agentId: string,
+  key: string,
+  value: Agent['permissions'][string],
+): Promise<void> {
+  const go = async () => {
+    await apiFetch(`/agents/${encodeURIComponent(agentId)}/permissions`, {
+      method: 'PATCH',
+      body: JSON.stringify({ key, value }),
+    });
+  };
+  await demoFallback(go)();
+  // Mirror locally so the UI reacts immediately (WS will broadcast backend events).
   const a = AGENTS.find((x) => x.id === agentId);
   if (a) a.permissions[key] = value;
-  if (BASE) {
-    try {
-      await fetch(`${BASE}/agents/${agentId}/permissions`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key, value }),
-      });
-      return;
-    } catch { /* mock already updated */ }
-  }
 }
 
 export async function setAgentStatus(agentId: string, status: Agent['status']): Promise<void> {
+  const go = async () => {
+    await apiFetch(`/agents/${encodeURIComponent(agentId)}/status`, {
+      method: 'POST',
+      body: JSON.stringify({ status }),
+    });
+  };
+  await demoFallback(go)();
   const a = AGENTS.find((x) => x.id === agentId);
   if (a) a.status = status;
-  if (BASE) {
-    try {
-      await fetch(`${BASE}/agents/${agentId}/status`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status }),
-      });
-      return;
-    } catch { /* mock */ }
-  }
 }
 
 export async function getIdentities(): Promise<Identity[]> {
   if (BASE) {
     try {
-      const r = await fetch(`${BASE}/identities`);
-      if (r.ok) return (await r.json()) as Identity[];
+      return await apiJson<Identity[]>(`/identities`);
     } catch { /* mock */ }
   }
   await wait(100);
@@ -150,12 +192,11 @@ export async function createIdentity(kind: IdentityKind): Promise<Identity> {
   IDENTITIES.unshift(idn);
   if (BASE) {
     try {
-      const r = await fetch(`${BASE}/identities`, {
+      const r = await apiJson<Identity>(`/identities`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ kind }),
       });
-      if (r.ok) return (await r.json()) as Identity;
+      return r;
     } catch { /* mock already added */ }
   }
   return idn;
@@ -166,7 +207,7 @@ export async function revokeIdentity(id: string): Promise<void> {
   if (idn) idn.status = 'revoked';
   if (BASE) {
     try {
-      await fetch(`${BASE}/identities/${id}/revoke`, { method: 'POST' });
+      await apiFetch(`/identities/${encodeURIComponent(id)}/revoke`, { method: 'POST' });
       return;
     } catch { /* mock */ }
   }
@@ -175,41 +216,105 @@ export async function revokeIdentity(id: string): Promise<void> {
 export async function getApprovals(): Promise<Approval[]> {
   if (BASE) {
     try {
-      const r = await fetch(`${BASE}/approvals`);
-      if (r.ok) return (await r.json()) as Approval[];
+      return await apiJson<Approval[]>(`/approvals`);
     } catch { /* mock */ }
   }
   await wait(100);
   return [...APPROVALS];
 }
 
-export async function decideApproval(id: string, decision: 'approved' | 'denied'): Promise<void> {
+export async function decideApproval(
+  id: string,
+  decision: 'approved' | 'denied',
+): Promise<void> {
   const apr = APPROVALS.find((x) => x.id === id);
   if (apr) apr.status = decision;
-  if (BASE) {
-    try {
-      await fetch(`${BASE}/approvals/${id}/decide`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ decision }),
-      });
-      return;
-    } catch { /* mock */ }
-  }
+  const go = async () => {
+    await apiFetch(`/approvals/${encodeURIComponent(id)}/decision`, {
+      method: 'POST',
+      body: JSON.stringify({ decision }),
+    });
+  };
+  await demoFallback(go)();
 }
 
 export async function killSwitch(on: boolean): Promise<void> {
   for (const a of AGENTS) a.status = on ? 'paused' : 'active';
-  if (BASE) {
-    try {
-      await fetch(`${BASE}/kill-switch`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ on }),
-      });
+  const go = async () => {
+    await apiFetch(`/kill-switch`, { method: 'POST', body: JSON.stringify({ on }) });
+  };
+  await demoFallback(go)();
+}
+
+export async function demoTrigger(scenario: 'masked_inbox' | 'approval' | 'blocked'): Promise<void> {
+  await demoFallback(async () => {
+    await apiFetch(`/demo/trigger`, {
+      method: 'POST',
+      body: JSON.stringify({ scenario }),
+    });
+  })();
+}
+
+// ---------------------------------------------------------------------------
+// WebSocket events with exponential-backoff reconnect
+// ---------------------------------------------------------------------------
+
+export function subscribeToEvents(cb: (e: VeilEvent) => void): Unsubscribe {
+  listeners.add(cb);
+  let ws: WebSocket | null = null;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let backoff = 500;
+  const MAX_BACKOFF = 30_000;
+
+  function connect() {
+    if (!BASE) {
+      setMode('demo');
       return;
-    } catch { /* mock */ }
+    }
+    try {
+      const url = `${BASE.replace(/^http/, 'ws')}/ws/events`;
+      ws = new WebSocket(url);
+      ws.onopen = () => {
+        setMode('live');
+        backoff = 500;
+      };
+      ws.onmessage = (m) => {
+        try {
+          cb(JSON.parse(m.data as string) as VeilEvent);
+        } catch {
+          /* ignore bad frames */
+        }
+      };
+      ws.onerror = () => {
+        ws?.close();
+      };
+      ws.onclose = () => {
+        ws = null;
+        setMode('demo');
+        scheduleReconnect();
+      };
+    } catch {
+      setMode('demo');
+      scheduleReconnect();
+    }
   }
+
+  function scheduleReconnect() {
+    if (timer || !BASE) return;
+    timer = setTimeout(() => {
+      timer = null;
+      backoff = Math.min(backoff * 2, MAX_BACKOFF);
+      connect();
+    }, backoff);
+  }
+
+  connect();
+
+  return () => {
+    listeners.delete(cb);
+    if (timer) clearTimeout(timer);
+    ws?.close();
+  };
 }
 
 /** Derives an event status from the tool used (used by the event generator in the store). */

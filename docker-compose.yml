@@ -1,17 +1,15 @@
 services:
   gateway:
     build:
-      context: .
+      context: ..
       dockerfile: Dockerfile.gateway
     ports:
       - "8000:8000"
-    env_file:
-      - .env
+    environment:
+      - VEIL_CORS_ORIGINS=http://localhost:3000,http://localhost:5173
     volumes:
-      - ./:/app
-    command: uvicorn gateway.main:app --host 0.0.0.0 --port 8000 --reload
-    depends_on:
-      - dashboard
+      - ..:/app
+    command: uvicorn gateway.main:app --host 0.0.0.0 --port 8000
 
   dashboard:
     build:
@@ -19,5 +17,7 @@ services:
       dockerfile: Dockerfile
     ports:
       - "3000:3000"
-    env_file:
-      - ../.env
+    environment:
+      - VITE_VEIL_API_URL=http://localhost:8000
+    depends_on:
+      - gateway

@@ -73,13 +73,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     api.getMode().then(setMode);
+    const unsubMode = api.onModeChange(setMode);
     api.getEvents().then(setEvents);
     api.getAgents().then(setAgents);
     api.getIdentities().then(setIdentities);
     api.getApprovals().then(setApprovals);
-    return api.subscribeToEvents((e) => {
+    const unsubEvents = api.subscribeToEvents((e) => {
       setEvents((prev) => [e, ...prev.filter((x) => x.id !== e.id)].slice(0, 300));
     });
+    return () => {
+      unsubMode();
+      unsubEvents();
+    };
   }, []);
 
   const pushToast = useCallback((text: string, tone: ToastMsg['tone'] = 'info') => {
@@ -104,8 +109,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const agent = agents.find((a) => a.id === agentId);
     if (agent) {
       pushToast(`Permission ${key} for ${agent.name} set to ${value}.`, 'info');
-      if (value === 'deny') {
+      if (value === 'deny' && mode !== 'live') {
         // Per the spec: deny drive.download_all -> the next such event is blocked.
+        // In live mode the backend emits this event itself (delivered over WS).
         if (key === 'drive.download_all') {
           addEvent({
             agent: agent.name,
@@ -120,7 +126,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         }
       }
     }
-  }, [agents, pushToast, addEvent]);
+  }, [agents, pushToast, addEvent, mode]);
 
   const setAgentStatus = useCallback((agentId: string, status: Agent['status']) => {
     void api.setAgentStatus(agentId, status);
@@ -142,22 +148,25 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     void api.decideApproval(id, decision);
     setApprovals((prev) => prev.map((a) => (a.id === id ? { ...a, status: decision } : a)));
     if (apr) {
-      addEvent({
-        agent: apr.agent,
-        app: apr.app,
-        tool: apr.action,
-        status: decision === 'approved' ? 'allowed' : 'blocked',
-        pii_found: apr.data_to_release.length ? ['address'] : [],
-        policy_rule:
-          decision === 'approved'
-            ? 'User approved: release alias data only'
-            : 'User denied: request cancelled',
-        original_preview: apr.details,
-        masked_preview:
-          decision === 'approved'
-            ? 'Released alias only — real address never shared'
-            : '—',
-      });
+      if (mode !== 'live') {
+        // In live mode the backend emits the outcome event itself (delivered over WS).
+        addEvent({
+          agent: apr.agent,
+          app: apr.app,
+          tool: apr.action,
+          status: decision === 'approved' ? 'allowed' : 'blocked',
+          pii_found: apr.data_to_release.length ? ['address'] : [],
+          policy_rule:
+            decision === 'approved'
+              ? 'User approved: release alias data only'
+              : 'User denied: request cancelled',
+          original_preview: apr.details,
+          masked_preview:
+            decision === 'approved'
+              ? 'Released alias only — real address never shared'
+              : '—',
+        });
+      }
       pushToast(
         decision === 'approved'
           ? 'Approved — the real address was never shared, only the alias.'
@@ -167,7 +176,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
     approvalResolver?.(decision === 'approved');
     setApprovalResolver(null);
-  }, [approvals, addEvent, pushToast, approvalResolver]);
+  }, [approvals, addEvent, mode, pushToast, approvalResolver]);
 
   const toggleKillSwitch = useCallback((on: boolean) => {
     void api.killSwitch(on);
@@ -185,7 +194,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [events, dismissed],
   );
 
-  const triggerApproval = useCallback(() => {
+  const triggerApproval = useCallback(async () => {
+    if (mode === 'live') {
+      await api.demoTrigger('approval');
+      api.getApprovals().then(setApprovals);
+      pushToast("Shopper-Bot is waiting for your approval.", 'info');
+      return;
+    }
     const id = `apr-live-${Date.now()}`;
     const apr: Approval = {
       id,
@@ -209,9 +224,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       masked_preview: 'Awaiting your approval — nothing released yet.',
     });
     pushToast('Shopper-Bot is waiting for your approval.', 'info');
-  }, [addEvent, pushToast]);
+  }, [mode, addEvent, pushToast]);
 
-  const triggerBlocked = useCallback(() => {
+  const triggerBlocked = useCallback(async () => {
+    if (mode === 'live') {
+      await api.demoTrigger('blocked');
+      pushToast('Unknown-Agent was blocked from downloading all Drive files.', 'danger');
+      return;
+    }
     addEvent({
       agent: 'Unknown-Agent',
       app: 'Drive',
@@ -223,7 +243,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       masked_preview: '—',
     });
     pushToast('Unknown-Agent was blocked from downloading all Drive files.', 'danger');
-  }, [addEvent, pushToast]);
+  }, [mode, addEvent, pushToast]);
 
   /* ---------- demo director: scripted ~90s sequence ---------- */
 

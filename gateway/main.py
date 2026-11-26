@@ -1,4 +1,9 @@
-"""VEIL gateway FastAPI app and MCP server entrypoint."""
+"""VEIL gateway FastAPI app and MCP server entrypoint.
+
+Mounts the ``/api`` router (REST) and hosts the root-level
+``/health`` and ``/ws/events`` endpoints so they match the AGENTS.md
+contract exactly (WS at ``/ws/events``, not ``/api/ws/events``).
+"""
 
 from __future__ import annotations
 
@@ -14,23 +19,29 @@ install(app)
 
 @app.get("/health")
 async def health() -> dict[str, str]:
-    """Liveness/readiness check (root path, kept for backwards compat)."""
+    """Liveness/readiness check."""
     return {"status": "ok"}
+
+
+@app.get("/api/health")
+async def api_health() -> dict[str, bool]:
+    """Liveness/readiness check under the API prefix."""
+    return {"ok": True}
 
 
 @app.websocket("/ws/events")
 async def ws_events(ws: WebSocket) -> None:
-    """Broadcast every new VeilEvent to all connected dashboard clients."""
+    """Push each new ``VeilEvent`` to connected dashboard clients as JSON."""
     await ws.accept()
-    store.subscribe(ws)
+    queue = store.subscribe()
     try:
         while True:
-            # Keep the connection open; inbound messages are not used.
-            await ws.receive_text()
+            event = await queue.get()
+            await ws.send_text(event.model_dump_json())
     except WebSocketDisconnect:
         pass
     finally:
-        store.unsubscribe(ws)
+        store.unsubscribe(queue)
 
 
 # MCP server (server toward agents) and MCP client (toward services) wiring,

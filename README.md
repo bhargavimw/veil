@@ -39,11 +39,11 @@ Responses go back through the same pipeline before the agent sees them.
 | `policy/` | Rules engine and scopes |
 | `audit/` | Logging, metrics, alerts |
 | `connectors/` | Gmail, Calendar, Drive and other plugins |
-| `dashboard/` | Next.js UI for permissions, approvals, activity |
+| `dashboard/` | Vite + React + TypeScript UI for permissions, approvals, activity |
 
 ## Tech stack
 
-Python · FastAPI · MCP SDK · Presidio / spaCy · SQLite / Postgres · Next.js · Docker Compose · (optional) Ollama for local, context-aware detection
+Python · FastAPI · MCP SDK · Presidio / spaCy · SQLite / Postgres · Vite + React · Docker Compose · (optional) Ollama for local, context-aware detection
 
 ## Getting started
 
@@ -55,6 +55,59 @@ docker compose up --build
 ```
 
 Then point your MCP-compatible agent at the VEIL gateway endpoint (see `docs/connecting-agents.md`).
+
+### Dashboard (Vite + React)
+
+The dashboard lives in `dashboard/` and runs in **demo (mock) mode** by default — no backend required:
+
+```bash
+cd dashboard
+npm install
+npm run dev        # http://localhost:5173
+```
+
+To connect it to a running gateway:
+
+```bash
+cd dashboard
+cp .env.example .env
+# edit VITE_VEIL_API_URL if needed, then:
+npm run dev
+```
+
+With `VITE_VEIL_API_URL=http://localhost:8000` the dashboard talks to the real
+backend (REST + `/ws/events`) and shows a "Live" badge; if the backend is
+unreachable it silently falls back to demo mode and shows a "Demo mode" badge.
+
+```bash
+npm run build      # static output in dist/ (zero TypeScript errors)
+npm run preview    # serve the build locally
+```
+
+### Running everything with Docker
+
+```bash
+docker compose up --build
+```
+
+Gateway: `http://localhost:8000`  ·  Dashboard: `http://localhost:3000`
+
+## Deploying the dashboard to Vercel
+
+The dashboard is a static SPA. Push the `dashboard/` folder (or the repo, with
+Vercel's root directory set to `dashboard/`) to Vercel:
+
+- Build command: `npm run build`
+- Output directory: `dist`
+- Development command: `npm run dev`
+- Set `VITE_VEIL_API_URL` to your publicly reachable gateway URL.
+
+`dashboard/vercel.json` contains an SPA rewrite of every path to `/index.html`,
+so a refresh on `/dashboard/activity` works after deployment.
+
+> Note: a hosted dashboard (Vercel or otherwise) can only reach the backend over a
+> public HTTPS URL or a tunnel (e.g. Cloudflare Tunnel, ngrok). `localhost:8000`
+> works only when running the dashboard locally against a local gateway.
 
 > Status: early development. Interfaces may change.
 

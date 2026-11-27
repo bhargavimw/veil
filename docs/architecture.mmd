@@ -1,74 +1,73 @@
-```mermaid
 flowchart TD
     %% External actors
     subgraph Actors
-        A[AI Agent / MCP Client]
-        U[User / Dashboard Operator]
+        A["AI Agent / MCP Client"]
+        U["User / Dashboard Operator"]
     end
 
     %% Dashboard frontend
     subgraph Dashboard ["VEIL Dashboard (Vite + React + TS + Tailwind)"]
-        D1[Landing / marketing site "/"]
-        D2[Dashboard Layout "/dashboard/*"]
-        D3[Pages: Overview · Activity · Agents · Identities · Approvals · Logs · Tokens]
-        D4[api.ts · single data-access layer]
-        D5[WebSocket /ws/events]
-        D6[Mock mode fallback + "Demo mode" badge]
+        D1["Landing / marketing site '/'"]
+        D2["Dashboard Layout '/dashboard/*'"]
+        D3["Pages: Overview · Activity · Agents · Identities · Approvals · Logs · Tokens"]
+        D4["api.ts · single data-access layer"]
+        D5["WebSocket /ws/events"]
+        D6["Mock mode fallback + 'Demo mode' badge"]
     end
 
     %% Gateway backend
     subgraph Gateway ["VEIL Gateway (FastAPI, Python 3.11+)"]
-        G1[GET /api/health]
-        G2[REST router /api/*]
-        G3[WebSocket /ws/events pub/sub]
-        G4[CORS from VEIL_CORS_ORIGINS]
+        G1["GET /api/health"]
+        G2["REST router /api/*"]
+        G3["WebSocket /ws/events pub/sub"]
+        G4["CORS from VEIL_CORS_ORIGINS"]
     end
 
     %% Pipeline (request order; reverse for responses)
     subgraph Pipeline ["Request pipeline (fail closed)"]
-        P1[1. Identity swap — real → alias]
-        P2[2. Permission policy — allow / mask / ask / deny]
-        P3[3. PII mask — Presidio + India recognizers]
-        P4[4. Audit log — append-only]
-        P5[5. MCP server → external service]
+        P1["1. Identity swap — real → alias"]
+        P2["2. Permission policy — allow / mask / ask / deny"]
+        P3["3. PII mask — Presidio + India recognizers"]
+        P4["4. Audit log — append-only"]
+        P5["5. MCP server → external service"]
     end
 
     %% Backend modules
     subgraph Modules ["Backend modules"]
-        M1[gateway/api — MemoryStore, REST + WS]
-        M2[identity — vault (Fernet), aliases]
-        M3[privacy — detector, recognizers, masker]
-        M4[policy — engine, YAML rules]
-        M5[audit — logger, models]
-        M6[connectors — Gmail stub]
+        M1["gateway/api — MemoryStore, REST + WS"]
+        M2["identity — vault (Fernet), aliases"]
+        M3["privacy — detector, recognizers, masker"]
+        M4["policy — engine, YAML rules"]
+        M5["audit — logger, models"]
+        M6["connectors — Gmail stub"]
     end
 
     %% Storage & external
     subgraph Storage
-        S1[(SQLite / SQLAlchemy)]
-        S2[Fernet-encrypted secrets]
+        S1[("SQLite / SQLAlchemy")]
+        S2["Fernet-encrypted secrets"]
     end
 
     subgraph Services ["External MCP services"]
-        X1[Gmail]
-        X2[Calendar]
-        X3[Drive]
+        X1["Gmail"]
+        X2["Calendar"]
+        X3["Drive"]
     end
 
     %% Relationships
-    A -->|MCP request| G2
-    U -->|REST + WS| D4
-    D4 -->|fetch / WS| G2
-    G2 -->|events broadcast| G3
-    G3 -->|JSON frames| D5
+    A -->|"MCP request"| G2
+    U -->|"REST + WS"| D4
+    D4 -->|"fetch / WS"| G2
+    G2 -->|"events broadcast"| G3
+    G3 -->|"JSON frames"| D5
 
     G2 --> P1
     P1 --> P2 --> P3 --> P4 --> P5
     P5 --> X1 & X2 & X3
 
-    X1 & X2 & X3 -->|response| P4
+    X1 & X2 & X3 -->|"response"| P4
     P4 --> P3 --> P2 --> P1
-    P1 -->|filtered response| A
+    P1 -->|"filtered response"| A
 
     G2 -.-> M1
     M1 -.-> M2 & M3 & M4 & M5 & M6
@@ -93,6 +92,5 @@ flowchart TD
     class X1,X2,X3 service
 
     linkStyle default stroke-width:2px,fill:none,stroke:#607d8b
-    linkStyle 8,9,10,11 stroke:#e65100,stroke-width:3px
-    linkStyle 12,13,14,15 stroke:#e65100,stroke-width:3px
-```
+    linkStyle 5,6,7,8,9,10,11,12 stroke:#e65100,stroke-width:3px
+    linkStyle 13,14,15,16,17,18,19 stroke:#e65100,stroke-width:3px

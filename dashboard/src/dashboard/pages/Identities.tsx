@@ -38,7 +38,7 @@ export function Identities() {
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {identities.map((i) => (
-          <IdentityCard key={i.id} identity={i} onRevoke={revokeIdentity} onRotate={() => pushToast('Alias rotated. The old value stops working immediately.', 'success')} />
+          <IdentityCard key={i.id} identity={i} onRevoke={revokeIdentity} onRotate={(id) => pushToast('Alias rotated. The old value stops working immediately.', 'success')} />
         ))}
       </div>
 

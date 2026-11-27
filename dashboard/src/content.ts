@@ -8,6 +8,7 @@ export const nav = {
     { label: 'Problem', href: '#problem' },
     { label: 'Solution', href: '#solution' },
     { label: 'How it works', href: '#how-it-works' },
+    { label: 'Connect', href: '#connect' },
     { label: 'Product', href: '#product' },
     { label: 'Features', href: '#features' },
     { label: 'Roadmap', href: '#roadmap' },
@@ -117,6 +118,27 @@ export const howItWorks = {
     },
   ],
   footer: 'Responses are filtered on the way back too.',
+};
+
+export const connect = {
+  eyebrow: 'GET STARTED',
+  title: 'Set up in minutes, not days.',
+  subtext: 'Connect your apps once. Every agent goes through VEIL.',
+  apps: [
+    { id: 'gmail', name: 'Gmail' },
+    { id: 'calendar', name: 'Calendar' },
+    { id: 'drive', name: 'Drive' },
+    { id: 'slack', name: 'Slack' },
+    { id: 'store', name: 'Store' },
+  ],
+  steps: [
+    { title: 'Connect your apps', body: 'Authorize each service once. Credentials stay in the VEIL vault.' },
+    { title: 'Choose a privacy level', body: 'Restricted, Flexible, or Unrestricted — change anytime.' },
+    { title: 'Point your agent at VEIL', body: 'One MCP URL and your agents are privacy-protected.' },
+  ],
+  configLabel: 'Example config',
+  configJson: '{"mcpServers":{"veil":{"url":"http://localhost:8000/mcp"}}}',
+  trustChips: ['Agents never see your credentials', 'No code needed', 'Revoke anytime'],
 };
 
 export const productPreview = {

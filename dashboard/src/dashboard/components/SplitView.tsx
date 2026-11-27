@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { motion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import type { VeilEvent } from '../types';
 import { StatusChip } from './StatusChip';
 

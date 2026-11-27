@@ -4,15 +4,18 @@ import { AnimatePresence, motion } from 'framer-motion';
 import {
   Activity,
   Bell,
+  ChevronDown,
   ChevronRight,
   ClipboardCheck,
   Globe,
+  KeyRound,
   LayoutDashboard,
   Menu,
   Power,
   Shield,
   Bot,
   BadgeCheck,
+  ScrollText,
   X,
 } from 'lucide-react';
 import { useStore } from './store';
@@ -24,16 +27,20 @@ import { Modal } from './components/Modal';
 const NAV = [
   { to: '/dashboard', label: 'Overview', icon: LayoutDashboard, end: true },
   { to: '/dashboard/activity', label: 'Activity', icon: Activity, end: false },
+  { to: '/dashboard/logs', label: 'Logs', icon: ScrollText, end: false },
   { to: '/dashboard/agents', label: 'Agents', icon: Bot, end: false },
   { to: '/dashboard/identities', label: 'Identities', icon: BadgeCheck, end: false },
+  { to: '/dashboard/tokens', label: 'Tokens', icon: KeyRound, end: false },
   { to: '/dashboard/approvals', label: 'Approvals', icon: ClipboardCheck, end: false },
 ];
 
 const TITLES: Record<string, string> = {
   '/dashboard': 'Overview',
   '/dashboard/activity': 'Activity',
+  '/dashboard/logs': 'Logs',
   '/dashboard/agents': 'Agents',
   '/dashboard/identities': 'Identities',
+  '/dashboard/tokens': 'Tokens',
   '/dashboard/approvals': 'Approvals',
 };
 

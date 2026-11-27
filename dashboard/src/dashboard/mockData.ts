@@ -1,4 +1,4 @@
-import type { Agent, Approval, Identity, VeilEvent } from './types';
+import type { Agent, Approval, ConnectedApp, Identity, OversightMode, Token, VeilEvent } from './types';
 
 /** All data is obviously fake: test card 4111..., 555 numbers, example.com. */
 
@@ -89,6 +89,25 @@ export const TOOLS = [
   'drive.download_all',
   'store.checkout',
 ] as const;
+
+export const TOKENS: Token[] = [
+  { id: 'tok-1', label: 'Assistant-1 prod', agent: 'Assistant-1', scopes: ['gmail.read_inbox', 'calendar.read_events'], created_at: new Date(Date.now() - 36e5 * 48).toISOString(), last_used: '2 min ago', status: 'active' },
+  { id: 'tok-2', label: 'Shopper-Bot checkout', agent: 'Shopper-Bot', scopes: ['store.checkout'], created_at: new Date(Date.now() - 36e5 * 12).toISOString(), last_used: '14 min ago', status: 'active' },
+  { id: 'tok-3', label: 'Planner calendar', agent: 'Planner', scopes: ['calendar.read_events', 'drive.download_all'], created_at: new Date(Date.now() - 36e5 * 72).toISOString(), last_used: '8 min ago', status: 'active' },
+  { id: 'tok-4', label: 'Legacy (revoked)', agent: 'Assistant-1', scopes: ['gmail.send_email'], created_at: new Date(Date.now() - 36e5 * 200).toISOString(), last_used: '3 days ago', status: 'revoked' },
+];
+
+export const CONNECTED_APPS: ConnectedApp[] = [
+  { id: 'gmail', name: 'Gmail', status: 'connected', connected_at: new Date(Date.now() - 36e5 * 48).toISOString(), agents_using: 1 },
+  { id: 'calendar', name: 'Calendar', status: 'connected', connected_at: new Date(Date.now() - 36e5 * 48).toISOString(), agents_using: 2 },
+  { id: 'drive', name: 'Drive', status: 'connected', connected_at: new Date(Date.now() - 36e5 * 72).toISOString(), agents_using: 2 },
+  { id: 'slack', name: 'Slack', status: 'disconnected', connected_at: '', agents_using: 0 },
+  { id: 'store', name: 'Store', status: 'connected', connected_at: new Date(Date.now() - 36e5 * 12).toISOString(), agents_using: 1 },
+];
+
+export const DEFAULT_OVERSIGHT_MODE: OversightMode = 'restricted';
+
+export const METADATA_STRIPPED = 1842;
 
 /** Seed: 40 past events across the 4 agents and 4 apps. */
 export function seedEvents(): VeilEvent[] {

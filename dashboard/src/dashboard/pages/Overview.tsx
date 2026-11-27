@@ -1,21 +1,26 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Activity, Bot, ShieldCheck, Users } from 'lucide-react';
+import { Activity, Bot, Eye, FileText, KeyRound, ShieldCheck, Users } from 'lucide-react';
 import { useStore } from '../store';
 import { StatCard } from '../components/StatCard';
 import { StatusChip } from '../components/StatusChip';
-import { AlertBanner } from '../components/AlertBanner';
+import { GroupedAlertBanner } from '../components/GroupedAlertBanner';
 import { Drawer } from '../components/Drawer';
 import { SplitView } from '../components/SplitView';
 import type { VeilEvent } from '../types';
 
+const MODE_LABELS: Record<string, string> = {
+  restricted: 'Restricted',
+  flexible: 'Flexible',
+  unrestricted: 'Unrestricted',
+};
+
 export function Overview() {
-  const { events, agents, alerts, dismissAlert, setAgentStatus, pushToast } = useStore();
+  const { events, agents, alerts, dismissAllAlerts, setAgentStatus, pushToast, tokens, metadataStripped, oversightMode } = useStore();
   const [selected, setSelected] = useState<VeilEvent | null>(null);
   const navigate = useNavigate();
 
-  // keep the drawer content in sync with incoming store updates
   useEffect(() => {
     if (!selected) return;
     const fresh = events.find((e) => e.id === selected.id);
@@ -26,37 +31,65 @@ export function Overview() {
   const maskedCount = events.filter((e) => e.status === 'masked').length * 3 + 12;
   const activeAgents = agents.filter((a) => a.status === 'active').length;
   const score = agents.length ? Math.round(agents.reduce((s, a) => s + a.privacy_score, 0) / agents.length) : 0;
-
+  const activeTokens = tokens.filter((t) => t.status === 'active').length;
   const latest = events.slice(0, 5);
+
+  const handleRevoke = (agentName: string) => {
+    const agent = agents.find((x) => x.name === agentName);
+    if (agent) {
+      setAgentStatus(agent.id, 'revoked');
+      pushToast(`${agentName} has been revoked.`, 'danger');
+    }
+    dismissAllAlerts();
+  };
 
   return (
     <div className="space-y-6">
-      {alerts.map((a) => (
-        <AlertBanner
-          key={a.id}
-          agent={a.agent}
-          message={`tried to download all Drive files. Blocked.`}
-          onView={() => { setSelected(a); dismissAlert(a.id); }}
-          onRevoke={() => {
-            const agent = agents.find((x) => x.name === a.agent);
-            if (agent) setAgentStatus(agent.id, 'revoked');
-            dismissAlert(a.id);
-            pushToast(`${a.agent} has been revoked.`, 'danger');
-          }}
-          onDismiss={() => dismissAlert(a.id)}
-        />
-      ))}
+      <AnimatePresence>
+        {alerts.length > 0 && (
+          <GroupedAlertBanner
+            events={alerts}
+            onView={(e) => setSelected(e)}
+            onRevoke={handleRevoke}
+            onDismissAll={dismissAllAlerts}
+          />
+        )}
+      </AnimatePresence>
 
       <div>
         <h2 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">Your privacy, under control.</h2>
         <p className="mt-1 text-sm text-slate-400">Here's how VEIL is protecting your information across AI agents.</p>
       </div>
 
+      {/* Row 1: original 4 stat cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard icon={ShieldCheck} label="Requests protected" value={protectedCount} tone="violet" />
         <StatCard icon={Activity} label="PII items masked" value={maskedCount} tone="cyan" />
         <StatCard icon={Bot} label="Agents connected" value={activeAgents} tone="green" />
         <StatCard icon={Users} label="Privacy score" value={score} suffix="/100" tone="amber" />
+      </div>
+
+      {/* Row 2: active tokens, metadata stripped, oversight mode */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <StatCard icon={KeyRound} label="Active tokens" value={activeTokens} tone="cyan" />
+        <StatCard icon={FileText} label="Metadata fields stripped" value={metadataStripped} tone="violet" />
+        <div className="glass rounded-2xl p-5">
+          <div className="flex items-center gap-3">
+            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-veil-amber/15 text-veil-amber">
+              <Eye className="h-[18px] w-[18px]" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Oversight mode</p>
+              <p className="text-lg font-bold capitalize text-white">{MODE_LABELS[oversightMode] ?? oversightMode}</p>
+            </div>
+          </div>
+          <Link
+            to="/dashboard/tokens"
+            className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-veil-cyan transition-colors hover:text-white"
+          >
+            Change oversight level →
+          </Link>
+        </div>
       </div>
 
       <div className="glass overflow-hidden rounded-2xl">

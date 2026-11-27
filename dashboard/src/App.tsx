@@ -7,6 +7,7 @@ import { Leak } from './components/Leak';
 import { Stakes } from './components/Stakes';
 import { Solution } from './components/Solution';
 import { HowItWorks } from './components/HowItWorks';
+import { Connect } from './components/Connect';
 import { ProductPreview } from './components/ProductPreview';
 import { Features } from './components/Features';
 import { UseCases } from './components/UseCases';
@@ -21,6 +22,8 @@ import { Activity } from './dashboard/pages/Activity';
 import { Agents } from './dashboard/pages/Agents';
 import { Identities } from './dashboard/pages/Identities';
 import { Approvals } from './dashboard/pages/Approvals';
+import { Logs } from './dashboard/pages/Logs';
+import { Tokens } from './dashboard/pages/Tokens';
 
 function Landing() {
   return (
@@ -37,6 +40,7 @@ function Landing() {
           {/* PART 2: THE SOLUTION */}
           <Solution />
           <HowItWorks />
+          <Connect />
           <ProductPreview />
           <Features />
           <UseCases />
@@ -59,8 +63,10 @@ export default function App() {
           <Route path="/dashboard" element={<DashboardLayout />}>
             <Route index element={<Overview />} />
             <Route path="activity" element={<Activity />} />
+            <Route path="logs" element={<Logs />} />
             <Route path="agents" element={<Agents />} />
             <Route path="identities" element={<Identities />} />
+            <Route path="tokens" element={<Tokens />} />
             <Route path="approvals" element={<Approvals />} />
           </Route>
           <Route path="*" element={<Landing />} />

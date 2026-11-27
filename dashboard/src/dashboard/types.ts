@@ -52,3 +52,23 @@ export interface ToastMsg {
   text: string;
   tone: 'success' | 'danger' | 'info';
 }
+
+export type OversightMode = 'restricted' | 'flexible' | 'unrestricted';
+
+export interface Token {
+  id: string;
+  label: string;
+  agent: string;
+  scopes: string[];
+  created_at: string;
+  last_used: string;
+  status: 'active' | 'revoked';
+}
+
+export interface ConnectedApp {
+  id: string;
+  name: string;
+  status: 'connected' | 'disconnected';
+  connected_at: string;
+  agents_using: number;
+}

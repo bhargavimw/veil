@@ -1,84 +1,151 @@
 import { motion, useReducedMotion } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import { Calendar, ChevronDown, Cloud, Mail, ShoppingBag, HardDrive } from 'lucide-react';
+import { Bot, ChevronDown, Shield } from 'lucide-react';
 import { hero } from '../content';
 
-/** Person at a laptop with orbiting app tiles and a glowing AI orb. */
-function HeroIllustration() {
+/**
+ * Animated You → VEIL → Agent diagram.
+ * Data packets flow left-to-right, pass through a glowing shield,
+ * and exit as masked tokens (e.g. "Rahul K." → "User_7F3A").
+ */
+function HeroDiagram() {
   const reduce = useReducedMotion();
 
-  const tiles = [
-    { icon: Mail, label: 'Mail', angle: -90 },
-    { icon: Calendar, label: 'Calendar', angle: -30 },
-    { icon: Cloud, label: 'Cloud', angle: 30 },
-    { icon: ShoppingBag, label: 'Shopping', angle: 90 },
-    { icon: HardDrive, label: 'Drive', angle: 150 },
+  // Packets that travel along the wire: original → masked token
+  const packets = [
+    { original: 'Rahul K.', masked: 'User_7F3A', delay: 0 },
+    { original: '4111 1111 1111 1111', masked: '[CARD_1]', delay: 1.2 },
+    { original: '+91 98765 43210', masked: '[PHONE_1]', delay: 2.4 },
   ];
-  const R = 128;
 
   return (
     <div className="relative mx-auto aspect-square w-full max-w-[440px]">
-      {/* AI orb */}
-      <div className="absolute right-[6%] top-1/2 -translate-y-1/2">
-        <div className="relative flex h-24 w-24 items-center justify-center">
-          <div className="absolute inset-0 rounded-full bg-veil-violet/30 blur-2xl animate-pulse-soft" />
-          <div className="relative h-16 w-16 rounded-full bg-gradient-to-br from-veil-violet to-veil-cyan shadow-[0_0_40px_rgba(139,92,246,0.6)]" />
-          <span className="absolute -bottom-7 text-[11px] font-medium uppercase tracking-widest text-slate-400">
-            AI agent
-          </span>
-        </div>
-      </div>
-
-      {/* Curved animated path from laptop to orb */}
+      {/* SVG paths: You → Shield → Agent */}
       <svg className="absolute inset-0 h-full w-full" viewBox="0 0 440 440" fill="none" aria-hidden>
+        {/* top path: You → Shield */}
         <path
-          id="hero-path"
-          d="M 150 250 C 220 250, 240 220, 320 220"
-          stroke="url(#hero-grad)"
-          strokeWidth="2"
+          id="hero-path-in"
+          d="M 90 220 C 150 220, 170 220, 200 220"
+          stroke="url(#hero-grad-in)"
+          strokeWidth="2.5"
+          strokeDasharray="6 8"
+          className={reduce ? undefined : 'animate-dash-flow'}
+        />
+        {/* bottom path: Shield → Agent */}
+        <path
+          id="hero-path-out"
+          d="M 240 220 C 270 220, 290 220, 350 220"
+          stroke="url(#hero-grad-out)"
+          strokeWidth="2.5"
           strokeDasharray="6 8"
           className={reduce ? undefined : 'animate-dash-flow'}
         />
         <defs>
-          <linearGradient id="hero-grad" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stopColor="#22D3EE" />
+          <linearGradient id="hero-grad-in" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stopColor="#F43F5E" />
             <stop offset="100%" stopColor="#8B5CF6" />
+          </linearGradient>
+          <linearGradient id="hero-grad-out" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stopColor="#22D3EE" />
+            <stop offset="100%" stopColor="#34D399" />
           </linearGradient>
         </defs>
       </svg>
 
-      {/* Orbiting app tiles */}
-      {tiles.map(({ icon: Icon, label, angle }, i) => {
-        const rad = (angle * Math.PI) / 180;
-        const x = 150 + R * Math.cos(rad) * 0.62;
-        const y = 250 + R * Math.sin(rad) * 0.78;
-        return (
-          <div
-            key={label}
-            className="absolute animate-float-y"
-            style={{
-              left: `${(x / 440) * 100}%`,
-              top: `${(y / 440) * 100}%`,
-              animationDelay: `${i * 0.7}s`,
-            }}
-          >
-            <div className="glass flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1 rounded-xl px-2.5 py-2">
-              <Icon className="h-4 w-4 text-veil-cyan" />
-              <span className="text-[10px] text-slate-400">{label}</span>
-            </div>
-          </div>
-        );
-      })}
+      {/* You node (left) */}
+      <div className="absolute left-[5%] top-1/2 -translate-y-1/2 flex flex-col items-center gap-2">
+        <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-white/15 bg-ink-soft/80 backdrop-blur-sm">
+          <svg width="32" height="38" viewBox="0 0 24 28" fill="none" aria-hidden>
+            <circle cx="12" cy="7" r="4.5" stroke="#94A3B8" strokeWidth="2" />
+            <path d="M3 26c0-5 4-8 9-8s9 3 9 8" stroke="#94A3B8" strokeWidth="2" strokeLinecap="round" />
+          </svg>
+        </div>
+        <span className="text-[11px] font-medium uppercase tracking-widest text-slate-400">You</span>
+      </div>
 
-      {/* Person at laptop */}
-      <div className="absolute left-[8%] top-1/2 -translate-y-1/2">
-        <svg width="120" height="150" viewBox="0 0 120 150" fill="none" aria-hidden>
-          <circle cx="60" cy="38" r="18" stroke="#94A3B8" strokeWidth="3" />
-          <path d="M28 130 v-30 a32 32 0 0 1 64 0 v30" stroke="#94A3B8" strokeWidth="3" strokeLinecap="round" />
-          <rect x="18" y="122" width="84" height="12" rx="4" stroke="#22D3EE" strokeWidth="3" />
-        </svg>
-        <span className="absolute -bottom-5 left-1/2 -translate-x-1/2 whitespace-nowrap text-[11px] font-medium uppercase tracking-widest text-slate-400">
-          You
+      {/* VEIL shield (center) */}
+      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center gap-2">
+        <motion.div
+          className="relative flex h-20 w-20 items-center justify-center"
+          animate={reduce ? undefined : { scale: [1, 1.06, 1] }}
+          transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+        >
+          <div className="absolute inset-0 rounded-2xl bg-veil-cyan/20 blur-2xl" />
+          <div className="relative flex h-16 w-16 items-center justify-center rounded-2xl border border-veil-cyan/40 bg-gradient-to-b from-veil-cyan/15 to-veil-violet/10 backdrop-blur-sm">
+            <Shield className="h-7 w-7 text-veil-cyan" />
+          </div>
+        </motion.div>
+        <span className="text-[11px] font-medium uppercase tracking-widest text-veil-cyan">VEIL</span>
+      </div>
+
+      {/* Agent orb (right) */}
+      <div className="absolute right-[5%] top-1/2 -translate-y-1/2 flex flex-col items-center gap-2">
+        <motion.div
+          className="relative flex h-16 w-16 items-center justify-center"
+          animate={reduce ? undefined : { scale: [1, 1.08, 1] }}
+          transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+        >
+          <div className="absolute inset-0 rounded-full bg-veil-violet/30 blur-xl" />
+          <div className="relative flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-veil-violet to-veil-cyan shadow-[0_0_30px_rgba(139,92,246,0.5)]">
+            <Bot className="h-5 w-5 text-white" />
+          </div>
+        </motion.div>
+        <span className="text-[11px] font-medium uppercase tracking-widest text-slate-400">Agent</span>
+      </div>
+
+      {/* Animated data packets flowing along the wire */}
+      {!reduce &&
+        packets.map((pkt, i) => (
+          <div key={i}>
+            {/* Raw packet: You → Shield (left half) */}
+            <motion.div
+              className="absolute top-1/2"
+              initial={{ left: '14%', opacity: 0 }}
+              animate={{ left: ['14%', '42%'], opacity: [0, 1, 1, 0] }}
+              transition={{
+                duration: 2,
+                delay: pkt.delay,
+                repeat: Infinity,
+                repeatDelay: 1.6,
+                ease: 'easeInOut',
+              }}
+              style={{ transform: 'translateY(-50%)' }}
+            >
+              <div className="glass rounded-full px-2.5 py-1 text-[10px] font-mono font-medium text-rose-300 whitespace-nowrap">
+                {pkt.original}
+              </div>
+            </motion.div>
+
+            {/* Masked packet: Shield → Agent (right half) */}
+            <motion.div
+              className="absolute top-1/2"
+              initial={{ left: '52%', opacity: 0 }}
+              animate={{ left: ['52%', '78%'], opacity: [0, 1, 1, 0] }}
+              transition={{
+                duration: 2,
+                delay: pkt.delay + 1,
+                repeat: Infinity,
+                repeatDelay: 1.6,
+                ease: 'easeInOut',
+              }}
+              style={{ transform: 'translateY(-50%)' }}
+            >
+              <div className="glass rounded-full border border-veil-cyan/30 px-2.5 py-1 text-[10px] font-mono font-medium text-veil-cyan whitespace-nowrap shadow-[0_0_12px_rgba(34,211,238,0.3)]">
+                {pkt.masked}
+              </div>
+            </motion.div>
+          </div>
+        ))}
+
+      {/* Floating label badges above the wire */}
+      <div className="absolute left-[14%] top-[18%]">
+        <span className="rounded-full border border-rose-400/20 bg-rose-400/5 px-2 py-0.5 text-[9px] uppercase tracking-widest text-rose-400">
+          raw data
+        </span>
+      </div>
+      <div className="absolute right-[14%] top-[18%]">
+        <span className="rounded-full border border-veil-green/20 bg-veil-green/5 px-2 py-0.5 text-[9px] uppercase tracking-widest text-veil-green">
+          masked
         </span>
       </div>
     </div>
@@ -142,7 +209,7 @@ export function Hero() {
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.8, delay: 0.2 }}
         >
-          <HeroIllustration />
+          <HeroDiagram />
         </motion.div>
       </div>
     </section>

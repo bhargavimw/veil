@@ -15,6 +15,7 @@ import {
   ListTodo,
   ShieldCheck,
   Settings,
+  Users,
 } from 'lucide-react';
 import { productPreview } from '../content';
 import { Reveal } from './ui/Reveal';

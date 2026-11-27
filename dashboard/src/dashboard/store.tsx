@@ -9,13 +9,17 @@ import {
   type ReactNode,
 } from 'react';
 import * as api from './api';
-import type { Agent, Approval, Identity, IdentityKind, ToastMsg, VeilEvent } from './types';
+import type { Agent, Approval, ConnectedApp, Identity, IdentityKind, OversightMode, Status, ToastMsg, Token, VeilEvent } from './types';
 
 interface Store {
   events: VeilEvent[];
   agents: Agent[];
   identities: Identity[];
   approvals: Approval[];
+  tokens: Token[];
+  connectedApps: ConnectedApp[];
+  oversightMode: OversightMode;
+  metadataStripped: number;
   killSwitchOn: boolean;
   mode: api.Mode;
   toasts: ToastMsg[];
@@ -27,8 +31,14 @@ interface Store {
   decideApproval: (id: string, decision: 'approved' | 'denied') => void;
   toggleKillSwitch: (on: boolean) => void;
   dismissAlert: (id: string) => void;
+  dismissAllAlerts: () => void;
   pushToast: (text: string, tone?: ToastMsg['tone']) => void;
   dismissToast: (id: number) => void;
+  createToken: (label: string, agent: string, scopes: string[]) => void;
+  revokeToken: (id: string) => void;
+  connectApp: (id: string) => void;
+  disconnectApp: (id: string) => void;
+  setOversightMode: (mode: OversightMode) => void;
   // demo director
   demo: {
     running: boolean;
@@ -53,12 +63,17 @@ export function useStore(): Store {
 }
 
 let toastSeq = 1;
+let evSeq = 1;
 
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [events, setEvents] = useState<VeilEvent[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [identities, setIdentities] = useState<Identity[]>([]);
   const [approvals, setApprovals] = useState<Approval[]>([]);
+  const [tokens, setTokens] = useState<Token[]>([]);
+  const [connectedApps, setConnectedApps] = useState<ConnectedApp[]>([]);
+  const [oversightMode, setOversightModeState] = useState<OversightMode>('restricted');
+  const [metadataStripped, setMetadataStripped] = useState(0);
   const [killSwitchOn, setKill] = useState(false);
   const [mode, setMode] = useState<api.Mode>('demo');
   const [toasts, setToasts] = useState<ToastMsg[]>([]);
@@ -73,18 +88,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     api.getMode().then(setMode);
-    const unsubMode = api.onModeChange(setMode);
     api.getEvents().then(setEvents);
     api.getAgents().then(setAgents);
     api.getIdentities().then(setIdentities);
     api.getApprovals().then(setApprovals);
-    const unsubEvents = api.subscribeToEvents((e) => {
+    api.getTokens().then(setTokens);
+    api.getConnectedApps().then(setConnectedApps);
+    api.getOversightMode().then(setOversightModeState);
+    api.getMetadataStripped().then(setMetadataStripped);
+    return api.subscribeToEvents((e) => {
       setEvents((prev) => [e, ...prev.filter((x) => x.id !== e.id)].slice(0, 300));
     });
-    return () => {
-      unsubMode();
-      unsubEvents();
-    };
   }, []);
 
   const pushToast = useCallback((text: string, tone: ToastMsg['tone'] = 'info') => {
@@ -109,9 +123,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const agent = agents.find((a) => a.id === agentId);
     if (agent) {
       pushToast(`Permission ${key} for ${agent.name} set to ${value}.`, 'info');
-      if (value === 'deny' && mode !== 'live') {
+      if (value === 'deny') {
         // Per the spec: deny drive.download_all -> the next such event is blocked.
-        // In live mode the backend emits this event itself (delivered over WS).
         if (key === 'drive.download_all') {
           addEvent({
             agent: agent.name,
@@ -126,7 +139,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         }
       }
     }
-  }, [agents, pushToast, addEvent, mode]);
+  }, [agents, pushToast, addEvent]);
 
   const setAgentStatus = useCallback((agentId: string, status: Agent['status']) => {
     void api.setAgentStatus(agentId, status);
@@ -143,30 +156,56 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     pushToast('Alias revoked. Apps using it will no longer recognise you.', 'danger');
   }, [pushToast]);
 
+  const createToken = useCallback((label: string, agent: string, scopes: string[]) => {
+    void api.createToken(label, agent, scopes).then((tok) => setTokens((prev) => [tok, ...prev]));
+    pushToast('Token issued. Point your agent at the VEIL MCP endpoint.', 'success');
+  }, [pushToast]);
+
+  const revokeToken = useCallback((id: string) => {
+    void api.revokeToken(id);
+    setTokens((prev) => prev.map((t) => (t.id === id ? { ...t, status: 'revoked' } : t)));
+    pushToast('Token revoked. The agent can no longer authenticate.', 'danger');
+  }, [pushToast]);
+
+  const connectApp = useCallback((id: string) => {
+    void api.connectApp(id);
+    setConnectedApps((prev) => prev.map((a) => (a.id === id ? { ...a, status: 'connected', connected_at: new Date().toISOString() } : a)));
+    pushToast('App connected. Credentials are sealed in the VEIL vault.', 'success');
+  }, [pushToast]);
+
+  const disconnectApp = useCallback((id: string) => {
+    void api.disconnectApp(id);
+    setConnectedApps((prev) => prev.map((a) => (a.id === id ? { ...a, status: 'disconnected', connected_at: '' } : a)));
+    pushToast('App disconnected. All tokens for it are invalid.', 'info');
+  }, [pushToast]);
+
+  const setOversightMode = useCallback((mode: OversightMode) => {
+    void api.setOversightMode(mode);
+    setOversightModeState(mode);
+    pushToast(`Oversight mode set to ${mode}.`, 'info');
+  }, [pushToast]);
+
   const decideApproval = useCallback((id: string, decision: 'approved' | 'denied') => {
     const apr = approvals.find((a) => a.id === id);
     void api.decideApproval(id, decision);
     setApprovals((prev) => prev.map((a) => (a.id === id ? { ...a, status: decision } : a)));
     if (apr) {
-      if (mode !== 'live') {
-        // In live mode the backend emits the outcome event itself (delivered over WS).
-        addEvent({
-          agent: apr.agent,
-          app: apr.app,
-          tool: apr.action,
-          status: decision === 'approved' ? 'allowed' : 'blocked',
-          pii_found: apr.data_to_release.length ? ['address'] : [],
-          policy_rule:
-            decision === 'approved'
-              ? 'User approved: release alias data only'
-              : 'User denied: request cancelled',
-          original_preview: apr.details,
-          masked_preview:
-            decision === 'approved'
-              ? 'Released alias only — real address never shared'
-              : '—',
-        });
-      }
+      addEvent({
+        agent: apr.agent,
+        app: apr.app,
+        tool: apr.action,
+        status: decision === 'approved' ? 'allowed' : 'blocked',
+        pii_found: apr.data_to_release.length ? ['address'] : [],
+        policy_rule:
+          decision === 'approved'
+            ? 'User approved: release alias data only'
+            : 'User denied: request cancelled',
+        original_preview: apr.details,
+        masked_preview:
+          decision === 'approved'
+            ? 'Released alias only — real address never shared'
+            : '—',
+      });
       pushToast(
         decision === 'approved'
           ? 'Approved — the real address was never shared, only the alias.'
@@ -176,7 +215,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
     approvalResolver?.(decision === 'approved');
     setApprovalResolver(null);
-  }, [approvals, addEvent, mode, pushToast, approvalResolver]);
+  }, [approvals, addEvent, pushToast, approvalResolver]);
 
   const toggleKillSwitch = useCallback((on: boolean) => {
     void api.killSwitch(on);
@@ -189,18 +228,25 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setDismissed((prev) => new Set(prev).add(id));
   }, []);
 
+  const dismissAllAlerts = useCallback(() => {
+    setDismissed((prev) => {
+      const next = new Set(prev);
+      for (const e of events) if (e.status === 'blocked') next.add(e.id);
+      return next;
+    });
+  }, [events]);
+
   const alerts = useMemo(
-    () => events.filter((e) => e.status === 'blocked' && !dismissed.has(e.id)).slice(0, 3),
+    () => {
+      const fiveMinAgo = Date.now() - 5 * 60 * 1000;
+      return events
+        .filter((e) => e.status === 'blocked' && !dismissed.has(e.id) && new Date(e.timestamp).getTime() >= fiveMinAgo)
+        .slice(0, 10);
+    },
     [events, dismissed],
   );
 
-  const triggerApproval = useCallback(async () => {
-    if (mode === 'live') {
-      await api.demoTrigger('approval');
-      api.getApprovals().then(setApprovals);
-      pushToast("Shopper-Bot is waiting for your approval.", 'info');
-      return;
-    }
+  const triggerApproval = useCallback(() => {
     const id = `apr-live-${Date.now()}`;
     const apr: Approval = {
       id,
@@ -224,14 +270,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       masked_preview: 'Awaiting your approval — nothing released yet.',
     });
     pushToast('Shopper-Bot is waiting for your approval.', 'info');
-  }, [mode, addEvent, pushToast]);
+  }, [addEvent, pushToast]);
 
-  const triggerBlocked = useCallback(async () => {
-    if (mode === 'live') {
-      await api.demoTrigger('blocked');
-      pushToast('Unknown-Agent was blocked from downloading all Drive files.', 'danger');
-      return;
-    }
+  const triggerBlocked = useCallback(() => {
     addEvent({
       agent: 'Unknown-Agent',
       app: 'Drive',
@@ -243,7 +284,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       masked_preview: '—',
     });
     pushToast('Unknown-Agent was blocked from downloading all Drive files.', 'danger');
-  }, [mode, addEvent, pushToast]);
+  }, [addEvent, pushToast]);
 
   /* ---------- demo director: scripted ~90s sequence ---------- */
 
@@ -307,9 +348,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setStep(4);
 
       // wait for user approval up to ~30s
-      await new Promise<boolean>((resolve) => {
+      const approved = await new Promise<boolean>((resolve) => {
         let done = false;
-        setApprovalResolver(() => {
+        setApprovalResolver((_prev: ((ok: boolean) => void) | null) => {
           return (ok: boolean) => { if (!done) { done = true; resolve(ok); } };
         });
         setTimeout(() => { if (!done) { done = true; resolve(false); } }, 30000);
@@ -335,7 +376,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setRunning(false);
       setStep(0);
     })();
-  }, [running, waitWhilePaused, addEvent, triggerApproval, triggerBlocked]);
+  }, [running, addEvent, triggerApproval, triggerBlocked]);
 
   const pause = useCallback(() => {
     setPaused((p) => {
@@ -362,6 +403,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       agents,
       identities,
       approvals,
+      tokens,
+      connectedApps,
+      oversightMode,
+      metadataStripped,
       killSwitchOn,
       mode,
       toasts,
@@ -373,14 +418,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       decideApproval,
       toggleKillSwitch,
       dismissAlert,
+      dismissAllAlerts,
       pushToast,
       dismissToast,
+      createToken,
+      revokeToken,
+      connectApp,
+      disconnectApp,
+      setOversightMode,
       demo: { running, paused, step, play, pause, reset, triggerApproval, triggerBlocked, approvalResolver, setApprovalResolver },
     }),
     [
-      events, agents, identities, approvals, killSwitchOn, mode, toasts, alerts,
+      events, agents, identities, approvals, tokens, connectedApps, oversightMode, metadataStripped,
+      killSwitchOn, mode, toasts, alerts,
       updatePermission, setAgentStatus, createIdentity, revokeIdentity, decideApproval,
-      toggleKillSwitch, dismissAlert, pushToast, dismissToast,
+      toggleKillSwitch, dismissAlert, dismissAllAlerts, pushToast, dismissToast,
+      createToken, revokeToken, connectApp, disconnectApp, setOversightMode,
       running, paused, step, play, pause, reset, triggerApproval, triggerBlocked, approvalResolver,
     ],
   );

@@ -24,6 +24,7 @@ import { Identities } from './dashboard/pages/Identities';
 import { Approvals } from './dashboard/pages/Approvals';
 import { Logs } from './dashboard/pages/Logs';
 import { Tokens } from './dashboard/pages/Tokens';
+import { ConnectedApps } from './dashboard/pages/ConnectedApps';
 
 function Landing() {
   return (
@@ -67,6 +68,7 @@ export default function App() {
             <Route path="agents" element={<Agents />} />
             <Route path="identities" element={<Identities />} />
             <Route path="tokens" element={<Tokens />} />
+            <Route path="connected-apps" element={<ConnectedApps />} />
             <Route path="approvals" element={<Approvals />} />
           </Route>
           <Route path="*" element={<Landing />} />

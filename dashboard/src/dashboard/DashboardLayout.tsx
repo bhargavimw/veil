@@ -17,6 +17,7 @@ import {
   BadgeCheck,
   ScrollText,
   X,
+  Link2,
 } from 'lucide-react';
 import { useStore } from './store';
 import { ScoreRing } from './components/ScoreRing';
@@ -30,6 +31,7 @@ const NAV = [
   { to: '/dashboard/logs', label: 'Logs', icon: ScrollText, end: false },
   { to: '/dashboard/agents', label: 'Agents', icon: Bot, end: false },
   { to: '/dashboard/identities', label: 'Identities', icon: BadgeCheck, end: false },
+  { to: '/dashboard/connected-apps', label: 'Connected Apps', icon: Link2, end: false },
   { to: '/dashboard/tokens', label: 'Tokens', icon: KeyRound, end: false },
   { to: '/dashboard/approvals', label: 'Approvals', icon: ClipboardCheck, end: false },
 ];
@@ -40,6 +42,7 @@ const TITLES: Record<string, string> = {
   '/dashboard/logs': 'Logs',
   '/dashboard/agents': 'Agents',
   '/dashboard/identities': 'Identities',
+  '/dashboard/connected-apps': 'Connected Apps',
   '/dashboard/tokens': 'Tokens',
   '/dashboard/approvals': 'Approvals',
 };

@@ -1,14 +1,15 @@
+import type React from 'react';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Activity, Bot, Eye, FileText, KeyRound, ShieldCheck, Users } from 'lucide-react';
+import { Activity, Bot, Eye, FileText, KeyRound, ShieldCheck, Shield, Users, Link2, Mail, Calendar, HardDrive, ShoppingBag } from 'lucide-react';
 import { useStore } from '../store';
 import { StatCard } from '../components/StatCard';
 import { StatusChip } from '../components/StatusChip';
 import { GroupedAlertBanner } from '../components/GroupedAlertBanner';
 import { Drawer } from '../components/Drawer';
 import { SplitView } from '../components/SplitView';
-import type { VeilEvent } from '../types';
+import type { VeilEvent, ConnectedApp } from '../types';
 
 const MODE_LABELS: Record<string, string> = {
   restricted: 'Restricted',
@@ -17,7 +18,7 @@ const MODE_LABELS: Record<string, string> = {
 };
 
 export function Overview() {
-  const { events, agents, alerts, dismissAllAlerts, setAgentStatus, pushToast, tokens, metadataStripped, oversightMode } = useStore();
+  const { events, agents, alerts, dismissAllAlerts, setAgentStatus, pushToast, tokens, metadataStripped, oversightMode, connectedApps, connectApp, disconnectApp } = useStore();
   const [selected, setSelected] = useState<VeilEvent | null>(null);
   const navigate = useNavigate();
 
@@ -32,7 +33,15 @@ export function Overview() {
   const activeAgents = agents.filter((a) => a.status === 'active').length;
   const score = agents.length ? Math.round(agents.reduce((s, a) => s + a.privacy_score, 0) / agents.length) : 0;
   const activeTokens = tokens.filter((t) => t.status === 'active').length;
+  const connectedCount = connectedApps.filter((a) => a.status === 'connected').length;
   const latest = events.slice(0, 5);
+
+  const APP_ICONS: Record<string, React.ElementType> = {
+    gmail: Mail,
+    calendar: Calendar,
+    drive: HardDrive,
+    store: ShoppingBag,
+  };
 
   const handleRevoke = (agentName: string) => {
     const agent = agents.find((x) => x.name === agentName);
@@ -89,6 +98,68 @@ export function Overview() {
           >
             Change oversight level →
           </Link>
+        </div>
+      </div>
+
+      {/* Connected apps strip */}
+      <div className="glass overflow-hidden rounded-2xl border border-white/5">
+        <div className="border-b border-white/5 px-5 py-4 sm:px-6 flex items-center justify-between">
+          <div>
+            <h3 className="font-semibold text-white">Connected apps</h3>
+            <p className="text-xs text-slate-500">
+              {connectedCount} of {connectedApps.length} services connected to VEIL
+            </p>
+          </div>
+          <Link
+            to="/dashboard/connected-apps"
+            className="inline-flex items-center gap-1 text-xs font-medium text-veil-cyan hover:text-white"
+          >
+            Manage all →
+            <Link2 className="h-3 w-3" />
+          </Link>
+        </div>
+        <div className="px-5 py-4 sm:px-6 flex flex-wrap gap-3">
+          {connectedApps.map((app) => {
+            const Icon = APP_ICONS[app.id] ?? Shield;
+            const connected = app.status === 'connected';
+            return (
+              <div
+                key={app.id}
+                className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors ${
+                  connected
+                    ? 'border-veil-green/30 bg-veil-green/5'
+                    : 'border-white/10 bg-white/5'
+                }`}
+              >
+                <div
+                  className={`flex h-6 w-6 items-center justify-center rounded-md ${
+                    connected ? 'bg-veil-green/20' : 'bg-white/5'
+                  }`}
+                >
+                  <Icon className={`h-3 w-3 ${connected ? 'text-veil-green' : 'text-slate-500'}`} />
+                </div>
+                <span className={`font-medium ${connected ? 'text-white' : 'text-slate-400'}`}>
+                  {app.name}
+                </span>
+                <span className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                  connected
+                    ? 'bg-veil-green/20 text-veil-green'
+                    : 'bg-white/5 text-slate-500 border border-white/5'
+                }`}>
+                  {connected ? 'Connected' : 'Disconnected'}
+                </span>
+                {!connected && (
+                  <button
+                    type="button"
+                    onClick={() => connectApp(app.id)}
+                    className="ml-2 rounded-md bg-gradient-to-r from-veil-violet to-veil-cyan px-2 py-1 text-[10px] font-semibold text-white hover:scale-[1.05] transition-transform"
+                  >
+                    Connect
+                  </button>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
 
